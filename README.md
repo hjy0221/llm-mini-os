@@ -1,0 +1,35 @@
+# M1 ARM64 Mini OS
+
+Apple Silicon Mac에서 만들고 QEMU의 ARM64 `virt` 머신에서 실행하는 최소 커널입니다.
+부트로더 없이 ELF 커널을 직접 올리며, PL011 직렬 포트로 메시지를 출력합니다.
+
+## 준비
+
+```sh
+brew install llvm lld qemu
+```
+
+최신 Homebrew에서는 LLVM 링커인 `ld.lld`가 `llvm`과 별도의 `lld` 패키지에
+들어 있습니다.
+
+## 실행
+
+```sh
+make run
+```
+
+정상적으로 부팅되면 다음 문구가 보입니다.
+
+```text
+Hello from M1-made ARM64 OS!
+Kernel is running on QEMU virt.
+```
+
+QEMU를 종료하려면 `Control-A`, `X`를 차례로 누르세요.
+
+## 구조
+
+- `src/boot.S`: CPU 선택, BSS 초기화, 스택 설정
+- `src/kernel.c`: 커널 진입점과 UART 출력
+- `linker.ld`: QEMU ARM64 메모리 배치
+- `Makefile`: 크로스 컴파일과 실행
