@@ -1,7 +1,12 @@
-# M1 ARM64 Mini OS
+# ARM64 QEMU Mini OS
 
-Apple Silicon Mac에서 만들고 QEMU의 ARM64 `virt` 머신에서 실행하는 최소 커널입니다.
-부트로더 없이 ELF 커널을 직접 올리며, PL011 직렬 포트로 메시지를 출력합니다.
+QEMU의 ARM64 `virt` 머신에서 실행하는 최소 커널입니다. 부트로더 없이 ELF
+커널을 직접 올리며, PL011 직렬 포트로 메시지를 출력합니다.
+
+현재 개발 PC는 Apple Silicon M1 Mac이지만, 이 커널의 실행 대상은 M1
+하드웨어가 아니라 QEMU ARM64 가상 머신입니다. 따라서 M1 전용 OS가 아니며,
+필요한 LLVM·LLD·QEMU 도구를 사용할 수 있는 다른 컴퓨터에서도 빌드하고
+실행할 수 있습니다.
 
 ## LLM을 활용한 개발
 
@@ -35,7 +40,7 @@ make run
 정상적으로 부팅되면 다음 문구가 보입니다.
 
 ```text
-Hello from M1-made ARM64 OS!
+Hello from ARM64 QEMU Mini OS!
 Kernel is running on QEMU virt.
 Type 'help' to see available commands.
 
