@@ -9,7 +9,8 @@ CFLAGS := --target=aarch64-none-elf -ffreestanding -fno-stack-protector \
 LDFLAGS := -T linker.ld -nostdlib
 
 BUILD := build
-OBJS := $(BUILD)/boot.o $(BUILD)/kernel.o
+OBJS := $(BUILD)/boot.o $(BUILD)/kernel.o $(BUILD)/uart.o \
+	$(BUILD)/console.o $(BUILD)/shell.o $(BUILD)/platform.o
 
 .PHONY: all run clean check-tools
 
@@ -27,7 +28,20 @@ $(BUILD):
 $(BUILD)/boot.o: src/boot.S | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.o: src/kernel.c | $(BUILD)
+$(BUILD)/kernel.o: src/kernel.c src/shell.h src/uart.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/uart.o: src/uart.c src/uart.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/console.o: src/console.c src/console.h src/uart.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/shell.o: src/shell.c src/shell.h src/console.h src/platform.h \
+		src/uart.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/platform.o: src/platform.c src/platform.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/kernel.elf: $(OBJS) linker.ld

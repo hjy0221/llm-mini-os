@@ -37,13 +37,44 @@ make run
 ```text
 Hello from M1-made ARM64 OS!
 Kernel is running on QEMU virt.
+Type 'help' to see available commands.
+
+mini-os>
 ```
 
 QEMU를 종료하려면 `Control-A`, `X`를 차례로 누르세요.
 
+## 셸 사용
+
+`mini-os>` 프롬프트에 명령을 입력하고 Enter를 누릅니다. 입력 중에는
+Backspace 또는 Delete로 문자를 지울 수 있습니다.
+
+| 명령 | 기능 |
+| --- | --- |
+| `help` | 사용 가능한 명령 목록 출력 |
+| `hello` | 인사말 출력 |
+| `clear` | ANSI 이스케이프 코드로 터미널 지우기 |
+| `info` | 아키텍처, 가상 머신, 콘솔 정보 출력 |
+| `reboot` | PSCI를 통해 QEMU 가상 머신 재부팅 |
+
+아직 구현되지 않은 명령을 입력하면 오류와 함께 `help` 사용법을 안내합니다.
+
 ## 구조
 
 - `src/boot.S`: CPU 선택, BSS 초기화, 스택 설정
-- `src/kernel.c`: 커널 진입점과 UART 출력
+- `src/kernel.c`: 커널 진입점과 셸 시작
+- `src/uart.c`: PL011 UART 문자 입력·출력
+- `src/console.c`: 한 줄 입력, 문자 에코, Backspace 처리
+- `src/shell.c`: 명령 프롬프트와 기본 명령
+- `src/platform.c`: PSCI 기반 시스템 재부팅
 - `linker.ld`: QEMU ARM64 메모리 배치
 - `Makefile`: 크로스 컴파일과 실행
+
+## 다음 단계
+
+1. ARM64 예외 벡터와 인터럽트 처리
+2. 시스템 타이머
+3. 물리·동적 메모리 관리
+4. 태스크 전환과 멀티태스킹
+5. 파일 시스템
+6. 사용자 프로그램
