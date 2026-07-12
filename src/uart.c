@@ -25,6 +25,15 @@ void uart_puts(const char *text) {
     }
 }
 
+void uart_put_hex64(uint64_t value) {
+    static const char digits[] = "0123456789abcdef";
+
+    uart_puts("0x");
+    for (int shift = 60; shift >= 0; shift -= 4) {
+        uart_putc(digits[(value >> (unsigned int)shift) & 0xfU]);
+    }
+}
+
 char uart_getc(void) {
     while ((UART_FR & UART_FR_RXFE) != 0U) {
     }
