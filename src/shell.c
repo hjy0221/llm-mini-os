@@ -1,6 +1,7 @@
 #include "shell.h"
 
 #include "console.h"
+#include "exception.h"
 #include "platform.h"
 #include "uart.h"
 
@@ -25,6 +26,7 @@ static void command_help(void) {
     uart_puts("  hello   Print a greeting\n");
     uart_puts("  clear   Clear the terminal\n");
     uart_puts("  info    Show OS information\n");
+    uart_puts("  fault   Trigger a test exception and halt\n");
     uart_puts("  reboot  Restart the virtual machine\n");
 }
 
@@ -34,6 +36,7 @@ static void command_info(void) {
     uart_puts("  Machine:      QEMU virt\n");
     uart_puts("  Console:      PL011 UART\n");
     uart_puts("  Shell:        built-in\n");
+    uart_puts("  Exceptions:   VBAR_EL1 installed\n");
 }
 
 static void execute_command(const char *command) {
@@ -45,6 +48,9 @@ static void execute_command(const char *command) {
         uart_puts("\x1b[2J\x1b[H");
     } else if (strings_equal(command, "info")) {
         command_info();
+    } else if (strings_equal(command, "fault")) {
+        uart_puts("Triggering a BRK exception...\n");
+        exception_trigger_test();
     } else if (strings_equal(command, "reboot")) {
         uart_puts("Rebooting...\n");
         platform_reboot();
