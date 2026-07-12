@@ -60,9 +60,22 @@ Backspace 또는 Delete로 문자를 지울 수 있습니다.
 | `hello` | 인사말 출력 |
 | `clear` | ANSI 이스케이프 코드로 터미널 지우기 |
 | `info` | 아키텍처, 가상 머신, 콘솔 정보 출력 |
+| `fault` | BRK 동기 예외를 발생시키고 예외 정보 출력 후 정지 |
 | `reboot` | PSCI를 통해 QEMU 가상 머신 재부팅 |
 
 아직 구현되지 않은 명령을 입력하면 오류와 함께 `help` 사용법을 안내합니다.
+
+`fault`는 ARM64 예외 처리기를 검증하기 위한 명령입니다. 실행하면
+`ESR_EL1`, `ELR_EL1`, `FAR_EL1`, `SPSR_EL1` 값이 출력되고 시스템이
+의도적으로 정지합니다. 다시 사용하려면 `Control-A`, `X`로 QEMU를 종료한 뒤
+`make run`을 실행하세요.
+
+## 예외 처리
+
+커널은 시작할 때 2KB 정렬된 ARM64 예외 벡터 테이블을 `VBAR_EL1`에
+등록합니다. 현재 EL의 동기 예외, IRQ, FIQ, SError와 낮은 EL에서 발생하는
+예외를 위한 16개 진입점을 갖습니다. 현재 단계에서는 예외 정보를 UART로
+보고한 뒤 추가 손상을 막기 위해 커널을 정지합니다.
 
 ## 구조
 
@@ -72,14 +85,16 @@ Backspace 또는 Delete로 문자를 지울 수 있습니다.
 - `src/console.c`: 한 줄 입력, 문자 에코, Backspace 처리
 - `src/shell.c`: 명령 프롬프트와 기본 명령
 - `src/platform.c`: PSCI 기반 시스템 재부팅
+- `src/exception_vectors.S`: 16개 ARM64 EL1 예외 벡터
+- `src/exception.c`: 예외 원인과 시스템 레지스터 UART 보고
 - `linker.ld`: QEMU ARM64 메모리 배치
 - `Makefile`: 크로스 컴파일과 실행
 
 ## 다음 단계
 
-1. ARM64 예외 벡터와 인터럽트 처리
-2. 시스템 타이머
-3. 물리·동적 메모리 관리
+1. GIC 인터럽트 컨트롤러와 IRQ 처리
+2. ARM64 시스템 타이머
+3. 물리·동적 메모리 관리와 MMU
 4. 태스크 전환과 멀티태스킹
 5. 파일 시스템
 6. 사용자 프로그램
