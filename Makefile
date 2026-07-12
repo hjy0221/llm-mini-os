@@ -10,15 +10,18 @@ LDFLAGS := -T linker.ld -nostdlib
 
 BUILD := build
 OBJS := $(BUILD)/boot.o $(BUILD)/kernel.o $(BUILD)/uart.o \
-	$(BUILD)/console.o $(BUILD)/shell.o $(BUILD)/platform.o
+	$(BUILD)/console.o $(BUILD)/shell.o $(BUILD)/platform.o \
+	$(BUILD)/exception_vectors.o $(BUILD)/exception.o
 
-.PHONY: all run clean check-tools
+.PHONY: all run clean check-build-tools check-run-tools
 
-all: check-tools $(BUILD)/kernel.elf
+all: check-build-tools $(BUILD)/kernel.elf
 
-check-tools:
+check-build-tools:
 	@test -x "$(CC)" || (echo "LLVM이 없습니다: brew install llvm"; exit 1)
 	@test -x "$(LD)" || (echo "LLD 링커가 없습니다: brew install lld"; exit 1)
+
+check-run-tools:
 	@command -v qemu-system-aarch64 >/dev/null || \
 		(echo "QEMU가 없습니다: brew install qemu"; exit 1)
 
@@ -28,7 +31,7 @@ $(BUILD):
 $(BUILD)/boot.o: src/boot.S | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.o: src/kernel.c src/shell.h src/uart.h | $(BUILD)
+$(BUILD)/kernel.o: src/kernel.c src/exception.h src/shell.h src/uart.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/uart.o: src/uart.c src/uart.h | $(BUILD)
@@ -37,17 +40,23 @@ $(BUILD)/uart.o: src/uart.c src/uart.h | $(BUILD)
 $(BUILD)/console.o: src/console.c src/console.h src/uart.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/shell.o: src/shell.c src/shell.h src/console.h src/platform.h \
-		src/uart.h | $(BUILD)
+$(BUILD)/shell.o: src/shell.c src/shell.h src/console.h src/exception.h \
+		src/platform.h src/uart.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/platform.o: src/platform.c src/platform.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/exception_vectors.o: src/exception_vectors.S | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/exception.o: src/exception.c src/exception.h src/uart.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/kernel.elf: $(OBJS) linker.ld
 	$(LD) $(LDFLAGS) $(OBJS) -o $@
 
-run: all
+run: all check-run-tools
 	qemu-system-aarch64 -M virt -cpu cortex-a72 -m 128M \
 		-nographic -serial mon:stdio -kernel $(BUILD)/kernel.elf
 
