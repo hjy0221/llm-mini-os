@@ -1,7 +1,9 @@
 # ARM64 QEMU Mini OS
 
 QEMU의 ARM64 `virt` 머신에서 실행하는 최소 커널입니다. 부트로더 없이 ELF
-커널을 직접 올리며, PL011 직렬 포트로 메시지를 출력합니다.
+커널을 직접 올리며, PL011 직렬 포트로 명령을 입력하고 결과를 출력합니다.
+GICv2 인터럽트 컨트롤러와 ARM Generic Timer를 사용해 100Hz 시스템 틱을
+발생시킵니다.
 
 현재 개발 PC는 Apple Silicon M1 Mac이지만, 이 커널의 실행 대상은 M1
 하드웨어가 아니라 QEMU ARM64 가상 머신입니다. 따라서 M1 전용 OS가 아니며,
@@ -59,7 +61,9 @@ Backspace 또는 Delete로 문자를 지울 수 있습니다.
 | `help` | 사용 가능한 명령 목록 출력 |
 | `hello` | 인사말 출력 |
 | `clear` | ANSI 이스케이프 코드로 터미널 지우기 |
-| `info` | 아키텍처, 가상 머신, 콘솔 정보 출력 |
+| `info` | 아키텍처, GICv2, 타이머 주파수 등 시스템 정보 출력 |
+| `ticks` | 부팅 후 발생한 100Hz 타이머 틱 수 출력 |
+| `uptime` | 부팅 후 지난 시간을 초 단위로 출력 |
 | `fault` | BRK 동기 예외를 발생시키고 예외 정보 출력 후 정지 |
 | `reboot` | PSCI를 통해 QEMU 가상 머신 재부팅 |
 
@@ -74,27 +78,53 @@ Backspace 또는 Delete로 문자를 지울 수 있습니다.
 
 커널은 시작할 때 2KB 정렬된 ARM64 예외 벡터 테이블을 `VBAR_EL1`에
 등록합니다. 현재 EL의 동기 예외, IRQ, FIQ, SError와 낮은 EL에서 발생하는
-예외를 위한 16개 진입점을 갖습니다. 현재 단계에서는 예외 정보를 UART로
-보고한 뒤 추가 손상을 막기 위해 커널을 정지합니다.
+예외를 위한 16개 진입점을 갖습니다.
+
+IRQ가 발생하면 일반 레지스터와 `ELR_EL1`, `SPSR_EL1`을 스택에 저장하고 C
+처리기를 호출합니다. 처리가 끝나면 모든 상태를 복원하고 `eret`으로 중단된
+코드에 돌아갑니다. 동기 예외, FIQ, SError는 아직 복구하지 않으며 예외 정보를
+UART로 보고한 뒤 추가 손상을 막기 위해 커널을 정지합니다.
+
+## 인터럽트와 시스템 타이머
+
+실행 시 QEMU 머신을 GICv2, 비보안 모드, CPU 1개로 고정합니다. 커널은 QEMU
+`virt`의 GIC Distributor와 CPU Interface를 초기화하고 ARM Generic Timer의
+비보안 물리 타이머(`CNTP_*`) PPI 30번을 연결합니다. 타이머는 초당 100번
+IRQ를 발생시켜 틱 카운터를 증가시킵니다.
+
+UART 수신 자체는 아직 인터럽트 방식이 아니라 레지스터를 확인하는 polling
+방식입니다. 다만 입력을 기다리는 동안에는 `wfi`로 CPU를 쉬게 하고, 10ms마다
+발생하는 타이머 IRQ에서 깨어나 UART를 다시 확인합니다.
 
 ## 구조
 
 - `src/boot.S`: CPU 선택, BSS 초기화, 스택 설정
 - `src/kernel.c`: 커널 진입점과 셸 시작
-- `src/uart.c`: PL011 UART 문자 입력·출력
+- `src/uart.c`: PL011 UART 입출력, 정수 출력, 입력 중 `wfi` 대기
 - `src/console.c`: 한 줄 입력, 문자 에코, Backspace 처리
 - `src/shell.c`: 명령 프롬프트와 기본 명령
 - `src/platform.c`: PSCI 기반 시스템 재부팅
-- `src/exception_vectors.S`: 16개 ARM64 EL1 예외 벡터
+- `src/exception_vectors.S`: 16개 ARM64 EL1 벡터, IRQ 프레임과 `eret`
 - `src/exception.c`: 예외 원인과 시스템 레지스터 UART 보고
+- `src/gic.c`: QEMU `virt`의 GICv2 초기화와 IRQ acknowledge/EOI
+- `src/irq.c`: IRQ 분배, 타이머 처리 연결, IRQ 마스크 해제
+- `src/timer.c`: ARM Generic Timer 초기화와 100Hz 틱 카운터
 - `linker.ld`: QEMU ARM64 메모리 배치
 - `Makefile`: 크로스 컴파일과 실행
 
+## 현재 한계
+
+- QEMU `virt`의 GICv2 주소를 직접 사용하며 Device Tree를 해석하지 않습니다.
+- CPU 1개만 실행하고 타이머 IRQ만 실제 장치 인터럽트로 처리합니다.
+- UART 수신은 polling 방식이라 입력을 최대 약 10ms 간격으로 확인합니다.
+- 동기 예외, FIQ, SError는 복구하지 않고 진단 후 정지합니다.
+- MMU, 동적 메모리, 프로세스, 파일 시스템, 사용자 프로그램은 없습니다.
+
 ## 다음 단계
 
-1. GIC 인터럽트 컨트롤러와 IRQ 처리
-2. ARM64 시스템 타이머
-3. 물리·동적 메모리 관리와 MMU
-4. 태스크 전환과 멀티태스킹
-5. 파일 시스템
-6. 사용자 프로그램
+1. PL011 UART 수신 IRQ와 ring buffer
+2. 예외·IRQ 진단 강화와 자동 QEMU 테스트
+3. 명령 인자와 공백 처리
+4. 물리·동적 메모리 관리와 MMU
+5. 태스크 전환과 멀티태스킹
+6. 파일 시스템과 사용자 프로그램
