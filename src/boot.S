@@ -6,6 +6,10 @@
 .extern __stack_top
 
 _start:
+    // 벡터와 GIC가 준비되기 전에는 모든 비동기 예외를 막는다.
+    msr daifset, #0xf
+    isb
+
     // QEMU가 여러 CPU를 시작해도 CPU 0만 커널을 실행한다.
     mrs x0, mpidr_el1
     and x0, x0, #0xff
