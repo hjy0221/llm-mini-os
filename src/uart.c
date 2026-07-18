@@ -34,8 +34,30 @@ void uart_put_hex64(uint64_t value) {
     }
 }
 
+void uart_put_uint64(uint64_t value) {
+    char digits[20];
+    unsigned int length = 0U;
+
+    if (value == 0U) {
+        uart_putc('0');
+        return;
+    }
+
+    while (value != 0U) {
+        digits[length++] = (char)('0' + value % 10U);
+        value /= 10U;
+    }
+
+    while (length != 0U) {
+        uart_putc(digits[--length]);
+    }
+}
+
 char uart_getc(void) {
     while ((UART_FR & UART_FR_RXFE) != 0U) {
+        // UART는 아직 polling 방식이지만, 타이머 IRQ가 10ms마다 깨워 준다.
+        // 계속 레지스터를 읽는 대신 다음 인터럽트까지 CPU를 쉬게 한다.
+        __asm__ volatile("wfi");
     }
     return (char)(UART_DR & 0xffU);
 }
