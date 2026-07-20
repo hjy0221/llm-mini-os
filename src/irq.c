@@ -2,6 +2,7 @@
 
 #include "gic.h"
 #include "timer.h"
+#include "uart.h"
 
 static volatile uint64_t unexpected_count;
 
@@ -23,6 +24,8 @@ void irq_handle(void) {
 
     if (interrupt_id == TIMER_INTERRUPT_ID) {
         timer_handle_interrupt();
+    } else if (interrupt_id == UART_INTERRUPT_ID) {
+        uart_handle_interrupt();
     } else {
         ++unexpected_count;
     }

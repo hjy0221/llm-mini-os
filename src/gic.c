@@ -10,6 +10,7 @@
 #define GICD_ICENABLER 0x180U
 #define GICD_ICPENDR 0x280U
 #define GICD_IPRIORITYR 0x400U
+#define GICD_ITARGETSR 0x800U
 #define GICD_ICFGR 0xc00U
 
 #define GICC_CTLR 0x000U
@@ -69,6 +70,14 @@ void gic_enable_interrupt(uint32_t interrupt_id, uint8_t priority) {
         *config_register = config;
     }
 
+    // 다중 CPU GIC의 SPI는 target이 필요하므로 CPU 0을 지정한다.
+    // 단일 CPU GIC에서는 이 필드가 RAZ/WI일 수 있다.
+    if (interrupt_id >= 32U) {
+        volatile uint8_t *target_register =
+            (volatile uint8_t *)(GICD_BASE + GICD_ITARGETSR + interrupt_id);
+        *target_register = 1U;
+    }
+
     *priority_register = priority;
     *gicd_register(GICD_ISENABLER + register_index * sizeof(uint32_t)) =
         1U << bit;
@@ -80,6 +89,8 @@ uint32_t gic_acknowledge_interrupt(void) {
 }
 
 void gic_end_interrupt(uint32_t acknowledge_value) {
+    // 장치의 interrupt clear가 GIC EOI보다 먼저 관측되어야 한다.
+    data_sync_barrier();
     *gicc_register(GICC_EOIR) = acknowledge_value;
     data_sync_barrier();
 }

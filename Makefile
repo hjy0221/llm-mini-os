@@ -37,7 +37,7 @@ $(BUILD)/kernel.o: src/kernel.c src/exception.h src/gic.h src/irq.h \
 		src/shell.h src/timer.h src/uart.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/uart.o: src/uart.c src/uart.h | $(BUILD)
+$(BUILD)/uart.o: src/uart.c src/uart.h src/gic.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/console.o: src/console.c src/console.h src/uart.h | $(BUILD)
@@ -62,7 +62,7 @@ $(BUILD)/gic.o: src/gic.c src/gic.h | $(BUILD)
 $(BUILD)/timer.o: src/timer.c src/timer.h src/gic.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/irq.o: src/irq.c src/irq.h src/gic.h src/timer.h | $(BUILD)
+$(BUILD)/irq.o: src/irq.c src/irq.h src/gic.h src/timer.h src/uart.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/kernel.elf: $(OBJS) linker.ld

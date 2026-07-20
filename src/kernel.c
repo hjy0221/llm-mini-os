@@ -8,6 +8,7 @@
 void kernel_main(void) {
     exception_init();
     gic_init();
+    uart_init();
     timer_init();
     irq_enable();
 

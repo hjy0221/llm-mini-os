@@ -8,8 +8,6 @@
 
 #include <stddef.h>
 
-#define COMMAND_CAPACITY 80U
-
 static int strings_equal(const char *left, const char *right) {
     while (*left != '\0' && *right != '\0') {
         if (*left != *right) {
@@ -30,6 +28,7 @@ static void command_help(void) {
     uart_puts("  ticks   Show timer tick count\n");
     uart_puts("  uptime  Show seconds since boot\n");
     uart_puts("  fault   Trigger a test exception and halt\n");
+    uart_puts("  shutdown Turn off the virtual machine\n");
     uart_puts("  reboot  Restart the virtual machine\n");
 }
 
@@ -37,7 +36,7 @@ static void command_info(void) {
     uart_puts("llm-mini-os\n");
     uart_puts("  Architecture: AArch64\n");
     uart_puts("  Machine:      QEMU virt\n");
-    uart_puts("  Console:      PL011 UART\n");
+    uart_puts("  Console:      PL011 UART RX IRQ, 256-byte ring\n");
     uart_puts("  Shell:        built-in\n");
     uart_puts("  Exceptions:   VBAR_EL1 installed\n");
     uart_puts("  Interrupts:   GICv2\n");
@@ -46,6 +45,19 @@ static void command_info(void) {
     uart_puts(" Hz, ");
     uart_put_uint64(TIMER_TICKS_PER_SECOND);
     uart_puts(" ticks/s\n");
+    uart_puts("  UART RX IRQs: ");
+    uart_put_uint64(uart_rx_interrupt_count());
+    uart_puts("\n  UART RX bytes: ");
+    uart_put_uint64(uart_rx_byte_count());
+    uart_puts("\n  UART buffered: ");
+    uart_put_uint64(uart_rx_buffered_count());
+    uart_puts("\n  UART highwater: ");
+    uart_put_uint64(uart_rx_high_watermark());
+    uart_puts("\n  UART drops:   ");
+    uart_put_uint64(uart_rx_overflow_count());
+    uart_puts("\n  UART errors:  ");
+    uart_put_uint64(uart_rx_error_count());
+    uart_puts("\n");
 }
 
 static void command_ticks(void) {
@@ -76,8 +88,14 @@ static void execute_command(const char *command) {
     } else if (strings_equal(command, "fault")) {
         uart_puts("Triggering a BRK exception...\n");
         exception_trigger_test();
+    } else if (strings_equal(command, "shutdown")) {
+        uart_puts("Shutting down...\n");
+        uart_flush();
+        platform_shutdown();
+        uart_puts("Shutdown failed.\n");
     } else if (strings_equal(command, "reboot")) {
         uart_puts("Rebooting...\n");
+        uart_flush();
         platform_reboot();
         uart_puts("Reboot failed.\n");
     } else {
@@ -88,7 +106,7 @@ static void execute_command(const char *command) {
 }
 
 void shell_run(void) {
-    char command[COMMAND_CAPACITY];
+    char command[CONSOLE_LINE_CAPACITY];
 
     for (;;) {
         uart_puts("mini-os> ");
