@@ -21,4 +21,10 @@ SECTIONS
     . = ALIGN(16);
     . += 0x10000;
     __stack_top = .;
+
+    . = ALIGN(0x1000);
+    __kernel_end = .;
+
+    ASSERT(__kernel_end <= 0x48000000,
+           "kernel image exceeds QEMU virt RAM")
 }
