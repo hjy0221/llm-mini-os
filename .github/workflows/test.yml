@@ -1,0 +1,38 @@
+name: Build and QEMU test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  qemu-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install LLVM, LLD, QEMU, and Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld qemu-system-arm python3
+
+      - name: Show selected tools
+        run: make print-tools
+
+      - name: Build and run QEMU regression tests
+        timeout-minutes: 2
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: make test
+
+      - name: Print QEMU transcript after failure
+        if: failure()
+        run: |
+          if test -f build/qemu-test.log; then
+            cat build/qemu-test.log
+          fi

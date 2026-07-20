@@ -34,6 +34,16 @@ static int strings_equal(const char *left, const char *right) {
     return *left == *right;
 }
 
+static int is_blank_line(const char *line) {
+    while (*line != '\0') {
+        if (*line != ' ') {
+            return 0;
+        }
+        ++line;
+    }
+    return 1;
+}
+
 static size_t copy_string(char *destination, size_t capacity,
                           const char *source) {
     size_t length = 0U;
@@ -72,7 +82,7 @@ static const char *history_entry(size_t offset_from_newest) {
 }
 
 static void history_add(const char *line) {
-    if (*line == '\0') {
+    if (is_blank_line(line)) {
         return;
     }
 

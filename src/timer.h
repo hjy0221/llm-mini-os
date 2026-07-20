@@ -11,5 +11,6 @@ void timer_handle_interrupt(void);
 uint64_t timer_ticks(void);
 uint64_t timer_uptime_seconds(void);
 uint64_t timer_frequency(void);
+void timer_sleep_ticks(uint64_t duration_ticks);
 
 #endif

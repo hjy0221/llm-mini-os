@@ -60,6 +60,9 @@ void timer_handle_interrupt(void) {
     }
 
     set_compare_value(next_deadline);
+
+    // 조건 확인 직후 IRQ가 발생해도 다음 wfe가 즉시 깨어나도록 이벤트를 남긴다.
+    __asm__ volatile("sev" ::: "memory");
 }
 
 uint64_t timer_ticks(void) {
@@ -72,4 +75,14 @@ uint64_t timer_uptime_seconds(void) {
 
 uint64_t timer_frequency(void) {
     return counter_frequency;
+}
+
+void timer_sleep_ticks(uint64_t duration_ticks) {
+    uint64_t start = timer_ticks();
+
+    while (timer_ticks() - start < duration_ticks) {
+        // 다음 타이머 또는 UART 인터럽트까지 CPU 실행을 잠시 멈춘다.
+        // UART가 먼저 깨우더라도 조건을 다시 검사하므로 일찍 끝나지 않는다.
+        __asm__ volatile("wfe" ::: "memory");
+    }
 }

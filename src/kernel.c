@@ -1,12 +1,22 @@
 #include "exception.h"
 #include "gic.h"
 #include "irq.h"
+#include "mmu.h"
+#include "page_alloc.h"
 #include "shell.h"
+#include "task.h"
 #include "timer.h"
 #include "uart.h"
 
 void kernel_main(void) {
     exception_init();
+    if (!mmu_init()) {
+        for (;;) {
+            __asm__ volatile("wfe" ::: "memory");
+        }
+    }
+    page_alloc_init();
+    task_init();
     gic_init();
     uart_init();
     timer_init();
