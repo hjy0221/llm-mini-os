@@ -1,5 +1,72 @@
 # ARM64 QEMU Mini OS
 
+[日本語](https://github.com/hjy0221/llm-mini-os#%E6%97%A5%E6%9C%AC%E8%AA%9E) · [English](https://github.com/hjy0221/llm-mini-os#english) · [한국어](https://github.com/hjy0221/llm-mini-os#%ED%95%9C%EA%B5%AD%EC%96%B4)
+
+## 日本語
+
+QEMU の ARM64 `virt` マシンで動く最小カーネルです。ブートローダーを使わず ELF カーネルを直接読み込み、PL011 シリアルポートでコマンドを入出力します。GICv2 と ARM Generic Timer による 100 Hz のシステムティック、UART IRQ、256 バイトのリングバッファ、identity mapping、4 KiB ページアロケーター、協調的なカーネルタスクを含みます。
+
+### 対象と開発
+
+Apple Silicon 専用の OS ではなく、QEMU の ARM64 仮想マシンを対象にしています。LLVM、LLD、QEMU を利用できる環境でビルド・実行できます。LLM コーディングエージェントは設計、C / ARM64 アセンブリの下書き、ビルド・実行エラーの分析、文書化に利用していますが、生成結果は仕様・コンパイル・実行・テストで検証します。
+
+ビルド、実行、コマンド、メモリ・割り込み・タスク・ファイルシステムの構成と制約は、韓国語セクションに保持しています。
+
+## English
+
+ARM64 QEMU Mini OS is a small freestanding kernel for QEMU's ARM64 `virt` machine. It boots an ELF kernel directly, exposes an interactive shell over PL011 UART, and uses GICv2 plus the ARM Generic Timer for a 100 Hz system tick.
+
+### Implemented features
+
+- ARM64 boot code, linker layout, BSS initialization, and a 64 KiB boot stack
+- Interrupt-driven PL011 UART input with a 256-byte ring buffer
+- EL1 exception vectors and diagnostic reporting for synchronous exceptions
+- GICv2 interrupt handling and a 100 Hz generic timer
+- 4 KiB physical page allocator with reuse and double-free protection
+- MMU identity mappings for RAM and MMIO with separate memory attributes
+- Cooperative round-robin kernel tasks with context switching and stack canaries
+- Interactive shell with quoting, escaping, history, editing, and system commands
+- Automated QEMU smoke tests and GitHub Actions CI
+
+### Requirements
+
+- Clang and LLD with the `aarch64-none-elf` target
+- `qemu-system-aarch64`
+- Python 3 for the smoke test
+
+On macOS, the required tools can be installed with Homebrew:
+
+```bash
+brew install llvm lld qemu python
+```
+
+### Build, run, and test
+
+```bash
+make
+make run
+make test
+```
+
+Exit QEMU with `Control-A`, then `X`.
+
+### Shell commands
+
+The shell includes `help`, `hello`, `echo`, `sleep`, `mem`, `memtest`, `mmu`, `tasks`, `taskdemo`, `clear`, `info`, `ticks`, `uptime`, `fault`, `shutdown`, and `reboot`.
+
+### LLM-assisted development
+
+LLM coding agents are used for design exploration, C and ARM64 assembly drafts, build and QEMU troubleshooting, tests, and documentation. Generated changes are reviewed through source inspection, compiler warnings, runtime checks, and automated smoke tests before acceptance.
+
+### Current limitations
+
+- The platform is fixed to a single-core QEMU `virt` machine with hard-coded GIC and UART settings.
+- MMU mappings use 2 MiB identity-mapped blocks; caches and per-page permissions are not enabled yet.
+- Scheduling is cooperative, and every kernel task shares the same EL1 address space.
+- There is no small-object heap, filesystem, process isolation, or user program support yet.
+
+## 한국어
+
 [한국어](#arm64-qemu-mini-os) · [English](#english)
 
 QEMU의 ARM64 `virt` 머신에서 실행하는 최소 커널입니다. 부트로더 없이 ELF
@@ -276,58 +343,3 @@ assembly에서 저장·복원하며, C 구조체 offset은 `_Static_assert`로 �
 3. UART·sleep을 scheduler-aware 대기로 바꾸고 타이머 선점 추가
 4. 작은 객체용 kernel heap과 사용자 주소 공간
 5. 파일 시스템과 사용자 프로그램
-
----
-
-## English
-
-ARM64 QEMU Mini OS is a small freestanding kernel for QEMU's ARM64 `virt` machine. It boots an ELF kernel directly, exposes an interactive shell over PL011 UART, and uses GICv2 plus the ARM Generic Timer for a 100 Hz system tick.
-
-### Implemented features
-
-- ARM64 boot code, linker layout, BSS initialization, and a 64 KiB boot stack
-- Interrupt-driven PL011 UART input with a 256-byte ring buffer
-- EL1 exception vectors and diagnostic reporting for synchronous exceptions
-- GICv2 interrupt handling and a 100 Hz generic timer
-- 4 KiB physical page allocator with reuse and double-free protection
-- MMU identity mappings for RAM and MMIO with separate memory attributes
-- Cooperative round-robin kernel tasks with context switching and stack canaries
-- Interactive shell with quoting, escaping, history, editing, and system commands
-- Automated QEMU smoke tests and GitHub Actions CI
-
-### Requirements
-
-- Clang and LLD with the `aarch64-none-elf` target
-- `qemu-system-aarch64`
-- Python 3 for the smoke test
-
-On macOS, the required tools can be installed with Homebrew:
-
-```bash
-brew install llvm lld qemu python
-```
-
-### Build, run, and test
-
-```bash
-make
-make run
-make test
-```
-
-Exit QEMU with `Control-A`, then `X`.
-
-### Shell commands
-
-The shell includes `help`, `hello`, `echo`, `sleep`, `mem`, `memtest`, `mmu`, `tasks`, `taskdemo`, `clear`, `info`, `ticks`, `uptime`, `fault`, `shutdown`, and `reboot`.
-
-### LLM-assisted development
-
-LLM coding agents are used for design exploration, C and ARM64 assembly drafts, build and QEMU troubleshooting, tests, and documentation. Generated changes are reviewed through source inspection, compiler warnings, runtime checks, and automated smoke tests before acceptance.
-
-### Current limitations
-
-- The platform is fixed to a single-core QEMU `virt` machine with hard-coded GIC and UART settings.
-- MMU mappings use 2 MiB identity-mapped blocks; caches and per-page permissions are not enabled yet.
-- Scheduling is cooperative, and every kernel task shares the same EL1 address space.
-- There is no small-object heap, filesystem, process isolation, or user program support yet.
