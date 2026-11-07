@@ -4,70 +4,551 @@
 
 ## 日本語
 
-QEMU の ARM64 `virt` マシンで動く最小カーネルです。ブートローダーを使わず ELF カーネルを直接読み込み、PL011 シリアルポートでコマンドを入出力します。GICv2 と ARM Generic Timer による 100 Hz のシステムティック、UART IRQ、256 バイトのリングバッファ、identity mapping、4 KiB ページアロケーター、協調的なカーネルタスクを含みます。
+QEMUのARM64 `virt`マシンで実行される最小カーネル。ブートローダなしでELF
+カーネルを直接上げ、PL011シリアルポートにコマンドを入力して結果を出力します。
+GICv2割り込みコントローラとARM Generic Timerを使用した100Hzシステムティック
+発生し、UART受信はIRQと256バイトのリングバッファで処理されます。 ARM64
+MMUのidentity mapping、4KiB物理ページアロケータ、明示的な`yield`に切り替える
+コラボレーションカーネルタスクも含まれています。
 
-### 対象と開発
+現在開発PCはApple Silicon M1 Macですが、このカーネルの実行対象はM1
+ハードウェアではなく、QEMU ARM64仮想マシンです。したがって、M1専用OSではなく、
+必要なLLVM・LLD・QEMUツールを使用できる他のコンピューターでもビルドし、
+実行できます。
 
-Apple Silicon 専用の OS ではなく、QEMU の ARM64 仮想マシンを対象にしています。LLVM、LLD、QEMU を利用できる環境でビルド・実行できます。LLM コーディングエージェントは設計、C / ARM64 アセンブリの下書き、ビルド・実行エラーの分析、文書化に利用していますが、生成結果は仕様・コンパイル・実行・テストで検証します。
+## LLMを活用した開発
 
-ビルド、実行、コマンド、メモリ・割り込み・タスク・ファイルシステムの構成と制約は、韓国語セクションに保持しています。
+このプロジェクトは、OpenAI CodexなどのLLMコーディングエージェントを開発支援ツールとして
+活用します。 LLM は次の作業を支援します。
 
-## English
+- カーネル構造と次の開発段階の設計
+- CおよびARM64アセンブリコードドラフトの作成
+- コンパイル・リンク・QEMU実行エラー解析
+- 文書の作成とコードの説明
 
-ARM64 QEMU Mini OS is a small freestanding kernel for QEMU's ARM64 `virt` machine. It boots an ELF kernel directly, exposes an interactive shell over PL011 UART, and uses GICv2 plus the ARM Generic Timer for a 100 Hz system tick.
+LLMが生成した結果は、ソースレビュー、コンパイル、QEMUブート
+テストを通して確認してください。 LLMは開発プロセスに使用され、現在カーネルに含まれています
+実行されず、起動したOSがネットワークでモデルに接続することもありません。
 
-### Implemented features
+## 準備
 
-- ARM64 boot code, linker layout, BSS initialization, and a 64 KiB boot stack
-- Interrupt-driven PL011 UART input with a 256-byte ring buffer
-- EL1 exception vectors and diagnostic reporting for synchronous exceptions
-- GICv2 interrupt handling and a 100 Hz generic timer
-- 4 KiB physical page allocator with reuse and double-free protection
-- MMU identity mappings for RAM and MMIO with separate memory attributes
-- Cooperative round-robin kernel tasks with context switching and stack canaries
-- Interactive shell with quoting, escaping, history, editing, and system commands
-- Automated QEMU smoke tests and GitHub Actions CI
+macOSではHomebrewとしてインストールします。
 
-### Requirements
-
-- Clang and LLD with the `aarch64-none-elf` target
-- `qemu-system-aarch64`
-- Python 3 for the smoke test
-
-On macOS, the required tools can be installed with Homebrew:
-
-```bash
+```sh
 brew install llvm lld qemu python
 ```
 
-### Build, run, and test
+最新のHomebrewでは、LLVMリンカーである`ld.lld`が`llvm`とは別の`lld`パッケージに
+含まれています。
 
-```bash
-make
+Ubuntuは次のパッケージをインストールします。
+
+```sh
+sudo apt-get update
+sudo apt-get install clang lld qemu-system-arm python3
+```
+
+MakefileはmacOSではHomebrewパスを使用し、その他の環境では`PATH`の
+`clang`、`ld.lld`、`qemu-system-aarch64`、`python3`を探します。選択したツールは
+`make print-tools`で確認できます。
+
+## 実行
+
+```sh
 make run
+```
+
+正常に起動すると、次のフレーズが表示されます。
+
+```text
+Hello from ARM64 QEMU Mini OS!
+Kernel is running on QEMU virt.
+Type 'help' to see available commands.
+
+mini-os>
+```
+
+正常終了するには、シェルで`shutdown`と入力します。いつでもQEMUを強制的に
+終了するには、`Control-A`、`X`を順に押します。
+
+## 自動テスト
+
+次のコマンドはカーネルを新しくビルドし、QEMUを自動的に起動し、UARTシェルを
+検査します。別のPythonパッケージは必要ありません。
+
+```sh
 make test
 ```
 
-Exit QEMU with `Control-A`, then `X`.
+テストは、次の機能を1つのQEMUセッションで確認します。
 
-### Shell commands
+- カーネルブートフレーズとシェルプロンプト
+- 基本コマンド、空白・引用符・backslash引数分離と最大引数処理
+- 閉じていない引用符と行末backslash parse error
+- 危険な追加因子が付いた`fault`、`shutdown`、`reboot`ブロック
+- `sleep`数字チェックと100Hzタイマーティック
+- MMU活性化と翻訳テーブルのソート・プロパティ
+- 物理ページ割り当て・zero-fill・返却・double-free防御
+- 2つのカーネルタスクの決定的なラウンドロビンコンテキストスイッチとスタックの回収
+- Backspaceと上・下方向キーコマンド記録および作成中の文章復元
+- `sleep`中にUARTリングバッファに入ったコマンドの保存
+- UART IRQ・drop・エラー統計
+- PSCI正常終了とQEMU終了コード
 
-The shell includes `help`, `hello`, `echo`, `sleep`, `mem`, `memtest`, `mmu`, `tasks`, `taskdemo`, `clear`, `info`, `ticks`, `uptime`, `fault`, `shutdown`, and `reboot`.
+成功すると、各項目は`[PASS]`としてマークされます。フルUARTレコードは
+`build/qemu-test.log`に保存されます。 GitHubにプッシュするかプルリクエストを作成すると
+GitHub ActionsのUbuntu環境でも同じ`make test`が自動的に実行されます。
 
-### LLM-assisted development
+## シェルの使用`mini-os>` プロンプトでコマンドを入力し、Enter キーを押します。入力中は
+Backspace または Delete で文字を消去できます。最近8つの空ではありません
+コマンドを記憶し、上・下方向キーで前のコマンドをナビゲートできます。作成中
+上方向キーを押して下方向キーに戻ると、作成した文が復元されます。一行
+最大79文字で、直前のコマンドなどのコマンドを連続して実行すると一度だけ保存されます。
+コマンド名と引数は、引用符の外のスペースで区切られます。前後のスペースと連続したスペース
+許可し、コマンド名を含む最大8つの引数を入力できます。二重引用符と
+一重引用符内のスペースは、1つの引数に含まれています。 `\`はすぐに次の文字を文字通り
+含めるので、スペース、二重引用符、一重引用符、`\`を引数に入れることができます。
 
-LLM coding agents are used for design exploration, C and ARM64 assembly drafts, build and QEMU troubleshooting, tests, and documentation. Generated changes are reviewed through source inspection, compiler warnings, runtime checks, and automated smoke tests before acceptance.
+```text
+mini-os> echo "hello world" 'from mini os'
+hello world from mini os
+mini-os> echo escaped\ space \"quoted\" \\backslash
+escaped space "quoted" \backslash
+mini-os> sleep 1
+Sleeping for 1 second...
+Done.
+mini-os> taskdemo 3
+Cooperative task demo:
+Task A: 1
+Task B: 1
+Task A: 2
+Task B: 2
+Task A: 3
+Task B: 3
+taskdemo: PASS
+```
 
-### Current limitations
+|コマンド機能
+| --- | --- |
+| `help` |利用可能なコマンドリスト出力|
+| `hello` |グリーティング出力|
+| `echo <text...>` |入力した引数を空白1つに連結して出力
+| `sleep <seconds>` |指定された秒待ってからシェルに戻る（0〜86400）|
+| `mem` | 4KiB物理ページの全体・使用・余裕個数出力
+| `memtest` |ページ3個を割り当て・検査・返却してdouble-free防御確認
+| `mmu` | MMU、cache、TTBR0、MAIR、TCRステータス出力|
+| `tasks` |協調型スケジューラとコンテキストスイッチ累積統計出力
+| `taskdemo [rounds]` | A / Bカーネルタスクを作成してラウンドロビン切り替え（デフォルト3、最大20）|
+| `clear` | ANSIエスケープコードで端末を消去する
+| `info` |アーキテクチャ、タイマー、UART IRQ・バッファ統計などシステム情報出力
+| `ticks` |起動後に発生した100Hzタイマチック数出力|
+| `uptime` |起動後過去の時間を秒単位で出力|
+| `fault` | BRK同期例外を発生させ、例外情報出力後に停止
+| `shutdown` | PSCI経由でQEMU仮想マシンの電源を切る
+| `reboot` | PSCI経由でQEMU仮想マシンを再起動する
 
-- The platform is fixed to a single-core QEMU `virt` machine with hard-coded GIC and UART settings.
-- MMU mappings use 2 MiB identity-mapped blocks; caches and per-page permissions are not enabled yet.
-- Scheduling is cooperative, and every kernel task shares the same EL1 address space.
-- There is no small-object heap, filesystem, process isolation, or user program support yet.
+まだ実装されていないコマンドを入力すると、エラーとともに`help`の使用方法を案内します。
+パーサは二重引用符と一重引用符自体を結果から削除し、引用符で囲んだ部分と
+すぐに付けられた一般文字を同じ引数に連結します。例えば
+`echo pre"hello world"post`は`prehello worldpost`を出力します。引用符の中でも
+backslash で次の文字をエスケープできます。閉じていない引用符または行末
+backslash は明確な parse error を出力し、そのコマンドを実行しません。
+
+`sleep`はタイマー値を繰り返し読み込み、CPUを使い続けるbusy-wait方式が
+いいえ。 `wfe`でCPUを休ませ、100HzタイマーIRQが起きるたびに経過時間を
+確認してください。待機中に到着したUART入力はリングバッファに保存されます。
+
+`fault`は、ARM64例外ハンドラを検証するためのコマンドです。実行すると
+`ESR_EL1`、`ELR_EL1`、`FAR_EL1`、`SPSR_EL1`の値が出力され、システム
+意図的に停止します。再利用するには、`Control-A`、`X`でQEMUを終了してから
+`make run`を実行してください。
+
+## 例外処理
+
+カーネルは、起動時に2KBソートされたARM64例外ベクトルテーブルを`VBAR_EL1`に登録します。現在のELの同期例外、IRQ、FIQ、SError、および低ELで発生
+例外のための16のエントリポイントがあります。
+
+IRQが発生した場合、汎用レジスタと`ELR_EL1`、`SPSR_EL1`をスタックに保存し、C
+ハンドラを呼び出します。処理が完了すると、すべての状態が復元され、`eret`で中断されました
+コードに戻ります。同期例外、FIQ、SErrorはまだ回復しておらず、例外情報
+UARTで報告した後、追加の損傷を防ぐためにカーネルを停止します。
+
+## 割り込みとシステムタイマ
+
+実行時にQEMUマシンをGICv2、非セキュアモード、CPU1台に固定します。カーネルはQEMU
+`virt`のGIC DistributorとCPU Interfaceを初期化し、ARM Generic Timerの
+非セキュア物理タイマー（`CNTP_*`）PPI 30番を接続します。タイマーは毎秒100回
+IRQを発生させ、ティックカウンタをインクリメントします。
+
+PL011 UARTはSPI 1、つまりGIC INTID 33を使用します。カーネルはUARTを115200 baud、
+8-bit、FIFOモードで初期化し、RX・receive-timeout・エラー割り込みを有効にします。
+IRQハンドラはハードウェアFIFOを最後まで空にし、文字を実容量256バイトのリング
+bufferに入れます。シェルはこのバッファで文字を消費し、空の場合は`wfe`
+待ちます。 ISRは新しい文字を保存し、`sev`で待機しているコードを起動します。
+
+リングバッファがいっぱいになると、新しい文字が破棄されますが、ハードウェアFIFOは空白になり、IRQ
+繰り返されるのを防ぎます。 `info` コマンドでの UART IRQ 回数、受信バイト数、現在
+バッファ使用量、最大使用量、ドロップ数、ハードウェアエラー数を確認できます。
+
+## メモリ管理とMMU
+
+QEMU `virt`の128MiB RAMは`0x40000000~0x47ffffff`にあります。カーネルイメージ、
+静的データ、64KiBブートスタックの後ろの最初の4KiB境界をlinker symbol
+`__kernel_end`としてマークし、次のページから物理ページのアロケータ
+管理します。新しいページはゼロで消去され、返されたページはフリーリストから
+まず再利用します。 `NULL`、非整列アドレス、範囲外アドレスとdouble-free
+拒否します。
+
+MMUは4KiB変換グランルと2MiBブロック記述子を使用します。現在
+仮想アドレスと物理アドレスを同じにするidentity mappingなので、MMUをオンにしても
+カーネル、スタック、UART、GICアドレスは変わりません。 GICとUARTは
+Device-nGnRnEでは、RAMはNormal WBWA属性に分割されます。 TTBR0用L1テーブルハン
+章、デバイス用L2一枚、RAM用L2一枚で合計12KiBの静的変換テーブルを
+使用します。
+
+現在の手順では、`SCTLR_EL1.M`のみをオンにしてアドレス変換を有効にします。 D-cacheと
+I-cacheは、安全なcache invalidateとページ固有の実行権限を実装するまで
+意図的にひも状態です。 `mmu`コマンドで実際のレジスタ値を確認できます
+あります。
+
+＃＃コラボレーションカーネルタスク
+
+タスク slot は boot・shell タスクを含めて最大 4 個です。新しいタスクは物理です
+ページアロケータから4KiB stackを1枚受け取り、`task_yield()`を呼び出すときのみ
+次のREADYタスクに切り替えます。 ARM64呼び出し規約に基づいてx19〜x30とSP
+assemblyで保存・復元し、C構造体offsetは`_Static_assert`で検査します。
+ビルドオプション`-mgeneral-regs-only`を維持するため、現在のFP / SIMDコンテキストは保存されません
+ではありません。各スタックの一番下にはカナリーを置き、`yield`、終了、回収時損傷がないか確認してください。
+
+タスク entry 関数が終わると FINISHED 状態になり、自身の stack ではその
+ページを解放しません。 shellタスクに戻った後にのみstackを回収して現在
+実行中のスタックを誤って返すことを避けます。 `taskdemo`は2つのタスクの領域です
+状態が context switch の後にも維持されるかを示し、`tasks` で生成・切替・終了・
+回数回数を見ることができます。このステップのタスクは、すべてEL1などのアドレス空間で
+実行するカーネルタスクであり、プロセス分離ではありません。
+
+## 構造
+
+- `src/boot.S`：CPU選択、BSS初期化、スタック設定
+- `src/kernel.c`: カーネルエントリポイントとシェル開始
+- `src/uart.c`：PL011 UART IRQ、256バイトRXリングバッファ、入出力
+- `src/console.c`：1行入力、編集、方向キーコマンド履歴
+- `src/shell.c`: コマンド・引数パーサ、コマンドプロンプトと基本コマンド
+- `src/platform.c`：PSCIベースのシステムシャットダウンと再起動
+- `src/exception_vectors.S`：16個のARM64 EL1ベクトル、IRQフレームと`eret`
+- `src/exception.c`：例外原因とシステムレジスタUART報告
+- `src/gic.c`: QEMU `virt`のGICv2初期化とIRQ acknowledge/EOI
+- `src/irq.c`: タイマー・UART IRQ分配とIRQマスク解除
+- `src/timer.c`: ARM Generic Timer初期化と100Hzティックカウンター
+- `src/mmu.c`: 4KiB translation table、RAM/MMIO identity mappingとMMU有効
+- `src/page_alloc.c`: 4KiB 物理ページ bump/free-list allocator
+- `src/task.c`: 協力型 round-robin scheduler、タスク生成・終了・stack回収
+- `src/task_switch.S`: ARM64 x19～x30・SP context switch
+- `tests/qemu_smoke.py`：QEMUブートとUARTシェルの自動回帰テスト
+- `.github/workflows/test.yml`: push・pull request用のLinux自動テスト
+- `linker.ld`: QEMU ARM64 メモリー配置
+- `Makefile`: macOS・Linuxツールナビゲーション、クロスコンパイル、実行とテスト
+
+## 現在の制限
+
+- QEMU `virt`のGICv2アドレスを直接使用し、デバイスツリーを解釈しません。
+- CPU 1個のみ実行し、UARTアドレス・24MHzクロック・GIC INTIDを直接指定します。
+- 256バイトを超える瞬間入力は、一部の文字がドロップされ、統計に記録されます。
+- コマンドパーサは環境変数・命令置換・ワイルドカード拡張をサポートしません。
+- 同期例外、FIQ、SErrorは回復せず、診断後に停止します。
+- MMUはidentity mappingと2MiB blockのみを使用し、ページ別R/O・NX・guard権限が
+  ありません。 D-cacheとI-cacheもまだアクティブではありません。
+- ページアロケータは固定された128MiB QEMU RAMと4KiB単位のみを管理し、小さなオブジェクト用
+  heap allocator はありません。
+- schedulerは明示的に`yield`する協力型です。タイマープリエンプション、優先順位、
+  scheduler-aware UART 待機・スリープはまだありません。
+- タスクスタックは現在4KiB一枚でカナリー診断はあるがMMU guard pageや
+  別のIRQスタックはまだありません。
+- すべてのタスクがEL1の同じアドレス空間を共有し、プロセス分離、ファイルシステム、
+  ユーザープログラムはありません。
+
+## 次のステップ
+
+1. L3 page tableで`.text`・`.rodata`・stack権限分離とguard pageを追加
+2. cacheメンテナンス後、D-cache・I-cache活性化
+3. UART・sleepをscheduler-aware待機に切り替えてタイマープリエンプションを追加
+4. 小さなオブジェクト用のカーネルヒープとユーザーアドレス空間
+5.ファイルシステムとユーザープログラム
+
+## English
+
+A minimal kernel running on an ARM64 `virt` machine on QEMU. ELF without bootloader
+It loads the kernel directly, inputs commands through the PL011 serial port, and outputs the results.
+100Hz system ticks using GICv2 interrupt controller and ARM Generic Timer
+UART reception is processed using IRQ and 256-byte ring buffer. ARM64
+MMU's identity mapping, 4KiB physical page allocator, switching to explicit `yield`
+Also includes cooperative kernel tasks.
+
+The current development PC is an Apple Silicon M1 Mac, but this kernel runs on the M1
+It's not hardware, it's a QEMU ARM64 virtual machine. Therefore, it is not a dedicated OS for M1,
+Build on other computers that have the necessary LLVM, LLD, and QEMU tools available.
+You can run it.
+
+## Development using LLM
+
+This project uses LLM coding agents such as OpenAI Codex as a development aid.
+Take advantage of it. An LLM helps you:
+
+- Design of kernel structure and next development steps
+- Drafting C and ARM64 assembly code
+- Analysis of compilation·link·QEMU execution errors
+- Documentation and code explanation
+
+The results generated by the LLM are source review, compilation, and QEMU booting.
+Verify through testing. LLM is only used in the development process and is not included in the current kernel.
+It does not run, and the booted OS does not connect to the model over the network.
+
+## ready
+
+On macOS, install with Homebrew.
+
+```sh
+brew install llvm lld qemu python
+```
+
+In the latest Homebrew, the LLVM linker `ld.lld` is in a separate package from `llvm`, `lld`.
+It's in.
+
+On Ubuntu, install the following packages:
+
+```sh
+sudo apt-get update
+sudo apt-get install clang lld qemu-system-arm python3
+```
+
+The Makefile uses the Homebrew path on macOS, and `PATH` in other environments.
+Look for `clang`, `ld.lld`, `qemu-system-aarch64`, and `python3`. The selected tool is
+You can check it with `make print-tools`.
+
+## run
+
+```sh
+make run
+```
+
+If it boots normally, you will see the following message:
+
+```text
+Hello from ARM64 QEMU Mini OS!
+Kernel is running on QEMU virt.
+Type 'help' to see available commands.
+
+mini-os>
+```
+
+To perform a graceful shutdown, type `shutdown` in the shell. Force QEMU at any time
+To exit, press `Control-A`, then `X`.
+
+## Automatic testing
+
+The following command builds a new kernel, automatically boots QEMU, and launches the UART shell.
+Check. No separate Python package is required.
+
+```sh
+make test
+```
+
+The test checks the following functions in one QEMU session:
+
+- Kernel boot phrase and shell prompt
+- Basic commands, space/quote/backslash argument separation and maximum argument handling
+- Unclosed quotes and line endings backslash parse error
+- Block `fault`, `shutdown`, `reboot` with dangerous additional parameters
+- `sleep` digit check and 100Hz timer ticks
+- MMU activation and translation table alignment/properties
+- Physical page allocation, zero-fill, return, double-free defense
+- Deterministic round-robin context switch and stack recovery of two kernel tasks
+- Record Backspace and up/down arrow key commands and restore sentences while writing
+- Preservation of commands entered in UART ring buffer during `sleep`
+- UART IRQ·drop·error statistics
+- PSCI normal exit and QEMU exit code
+
+If successful, each entry will be marked as `[PASS]`. The full UART history is
+It is saved in `build/qemu-test.log`. When you push to GitHub or make a pull request
+The same `make test` runs automatically in the Ubuntu environment in GitHub Actions.
+
+## Use shellAt the `mini-os>` prompt, type the command and press Enter. While typing
+You can erase characters with Backspace or Delete. Last 8 non-empty
+It remembers commands and allows you to navigate to previous commands using the up and down arrow keys. While writing
+If you press the up arrow key and then return to the down arrow key, the sentence you were writing will be restored. One line
+It can be up to 79 characters, and is saved only once if the same command as the previous command is executed consecutively.
+Command names and arguments are separated by spaces outside the quotes. Leading and trailing spaces and consecutive spaces
+Up to 8 arguments can be entered, including the command name. With double quotation marks
+Spaces within single quotes are included in one argument. `\` literally matches the immediately following characters
+Contains spaces, double quotes, single quotes, and `\` as arguments.
+
+```text
+mini-os> echo "hello world" 'from mini os'
+hello world from mini os
+mini-os> echo escaped\ space \"quoted\" \\backslash
+escaped space "quoted" \backslash
+mini-os> sleep 1
+Sleeping for 1 second...
+Done.
+mini-os> taskdemo 3
+Cooperative task demo:
+Task A: 1
+Task B: 1
+Task A: 2
+Task B: 2
+Task A: 3
+Task B: 3
+taskdemo: PASS
+```
+
+| command | Features |
+| --- | --- |
+| `help` | Print list of available commands |
+| `hello` | print greeting |
+| `echo <text...>` | Prints the input arguments concatenated with one space |
+| `sleep <seconds>` | Wait for the specified number of seconds and return to the shell (0~86400) |
+| `mem` | Output total/used/free number of 4KiB physical pages |
+| `memtest` | Allocate, inspect, and return 3 pages and check double-free defense |
+| `mmu` | MMU, cache, TTBR0, MAIR, TCR status output |
+| `tasks` | Collaborative scheduler and context switch cumulative statistics output |
+| `taskdemo [rounds]` | Create A/B kernel tasks to switch round-robin (default 3, maximum 20) |
+| `clear` | Clearing terminal with ANSI escape code |
+| `info` | Output system information such as architecture, timer, UART IRQ and buffer statistics |
+| `ticks` | Output the number of 100Hz timer ticks that occurred after booting |
+| `uptime` | Output the elapsed time in seconds since booting |
+| `fault` | BRK causes a synchronous exception and outputs exception information and stops |
+| `shutdown` | Power off QEMU virtual machine via PSCI |
+| `reboot` | Reboot QEMU virtual machine via PSCI |
+
+If you enter a command that is not yet implemented, you will receive an error and instructions on how to use `help`.
+The parser removes the double and single quotes themselves from the result, and the quoted parts and
+Concatenates immediately attached regular characters into the same argument. For example
+`echo pre"hello world"post` outputs `prehello worldpost`. Even within quotation marks
+You can escape the next character with a backslash. At the end of an unclosed quote or line
+backslash prints a clear parse error and does not execute the command.
+
+`sleep` has a busy-wait method that repeatedly reads the timer value and continues to use the CPU.
+No. Let the CPU rest with `wfe` and check the elapsed time every time the 100Hz timer IRQ wakes up.
+Confirm. UART input that arrives while waiting is stored in the ring buffer.
+
+`fault` is a command for verifying ARM64 exception handlers. If you run
+The values `ESR_EL1`, `ELR_EL1`, `FAR_EL1`, and `SPSR_EL1` are output and the system
+Stop intentionally. To use it again, close QEMU with `Control-A` or `X`.
+Run `make run`.
+
+## Exception handling
+
+At startup, the kernel stores a 2KB aligned ARM64 exception vector table in `VBAR_EL1`.Register. Synchronous exceptions in the current EL, IRQ, FIQ, SError and lower EL are raised.
+It has 16 entry points for exceptions.
+
+When an IRQ occurs, general registers and `ELR_EL1` and `SPSR_EL1` are stored on the stack and C
+Call the handler. After processing, restore all states and stop with `eret`.
+Back to the code. Synchronous exceptions, FIQ, and SError are not yet recovered and exception information is
+It reports to the UART and then halts the kernel to prevent further damage.
+
+## Interrupts and system timers
+
+When running, lock the QEMU machine to GICv2, insecure mode, with 1 CPU. Kernel is QEMU
+Initializes the GIC Distributor and CPU Interface of `virt` and configures the ARM Generic Timer.
+Connect non-secure physical timer (`CNTP_*`) PPI 30. Timer 100 times per second
+Increments the tick counter by raising an IRQ.
+
+The PL011 UART uses SPI 1, i.e. GIC INTID 33. Kernel sets UART to 115200 baud,
+Initialize to 8-bit, FIFO mode and enable RX·receive-timeout·error interrupt.
+The IRQ handler drains the hardware FIFO and stores characters in a ring with an actual capacity of 256 bytes.
+Put it in buffer. The shell consumes characters from this buffer, with `wfe` if empty.
+Wait. The ISR stores the new character and wakes up the waiting code with `sev`.
+
+When the ring buffer is full, new characters are discarded, but the hardware FIFO continues to be empty so that the IRQ is
+Prevent repetition. In `info` command, UART IRQ count, number of bytes received, current
+You can check buffer usage, maximum usage, number of drops, and number of hardware errors.
+
+## Memory management and MMU
+
+128MiB RAM of QEMU `virt` is in `0x40000000~0x47ffffff`. kernel image,
+Static data, first 4KiB boundary after 64KiB boot stack as linker symbol
+It is displayed as `__kernel_end`, and the physical page allocator starts from the next page.
+Manage it. New pages are erased with 0 and then returned, and the returned pages are removed from the free-list.
+Reuse it first. `NULL`, unaligned address, out-of-range address and double-free
+I refuse.
+
+MMU uses 4KiB translation granule and 2MiB block descriptor. present
+Since it is identity mapping that keeps the virtual address and physical address the same, even after turning on the MMU,
+Kernel, stack, UART, and GIC addresses do not change. GIC and UART
+With Device-nGnRnE, RAM is separated with Normal WBWA attribute. One L1 table for TTBR0
+12KiB static translation table, one L2 for device and one L2 for RAM.
+I use it.
+
+At this stage, only `SCTLR_EL1.M` is turned on to enable address translation. D-cache and
+Until I-cache implements safe cache invalidate and per-page execution permissions,
+It has been turned off intentionally. You can check the actual register value with the `mmu` command.
+There is.
+
+## Cooperative kernel tasks
+
+There are a maximum of 4 task slots, including boot·shell tasks. The new task is physical
+Receive a 4KiB stack from the page allocator, and only when calling `task_yield()`.
+Switches to the next READY task. x19~x30 and SP according to ARM64 calling convention
+It is saved and restored in assembly, and the C structure offset is checked with `_Static_assert`.
+Build option `-mgeneral-regs-only` is maintained, so the current FP/SIMD context is not saved.
+It doesn't. At the bottom of each stack, a canary is placed and `yield` is used for termination and recovery.Check for damage.
+
+When the task entry function ends, it becomes FINISHED, and in its stack, it becomes FINISHED.
+Does not release pages. Only after returning to the shell task, the stack is retrieved and the current
+Avoid incorrectly returning the running stack. `taskdemo` is the region of both tasks
+It shows whether the state is maintained even after the context switch, and creates, switches, terminates, and
+You can see the number of recoveries. All tasks in this stage are in the same address space as EL1.
+This is a kernel task that runs, not process isolation.
+
+## Structure
+
+- `src/boot.S`: CPU selection, BSS initialization, stack settings
+- `src/kernel.c`: Kernel entry point and shell startup
+- `src/uart.c`: PL011 UART IRQ, 256 byte RX ring buffer, input/output
+- `src/console.c`: One-line input, editing, arrow key command history
+- `src/shell.c`: command/argument parser, command prompt and basic commands
+- `src/platform.c`: PSCI-based system shutdown and reboot
+- `src/exception_vectors.S`: 16 ARM64 EL1 vectors, IRQ frames and `eret`
+- `src/exception.c`: Exception cause and system register UART reporting
+- `src/gic.c`: GICv2 initialization and IRQ acknowledge/EOI of QEMU `virt`
+- `src/irq.c`: Timer/UART IRQ distribution and IRQ mask release
+- `src/timer.c`: ARM Generic Timer initialization and 100Hz tick counter
+- `src/mmu.c`: 4KiB translation table, RAM/MMIO identity mapping and MMU activation
+- `src/page_alloc.c`: 4KiB physical page bump/free-list allocator
+- `src/task.c`: cooperative round-robin scheduler, task creation/termination/stack recovery
+- `src/task_switch.S`: ARM64 x19~x30·SP context switch
+- `tests/qemu_smoke.py`: QEMU boot and UART shell auto-regressive testing.
+- `.github/workflows/test.yml`: Linux automatic testing for push·pull requests
+- `linker.ld`: QEMU ARM64 memory placement
+- `Makefile`: macOS·Linux tool exploration, cross-compilation, execution and testing
+
+## Current limit
+
+- The GICv2 address of QEMU `virt` is used directly and the Device Tree is not interpreted.
+- Runs only one CPU and directly specifies the UART address, 24MHz clock, and GIC INTID.
+- Instantaneous input larger than 256 bytes may result in some characters being dropped and logged in statistics.
+- The command parser does not support environment variables, command substitution, and wildcard expansion.
+- Synchronous exceptions, FIQ, and SError are diagnosed and stopped without recovery.
+- MMU uses only identity mapping and 2MiB block, and has R/O·NX·guard permissions per page.
+  No. D-cache and I-cache are also not enabled yet.
+- The page allocator only manages a fixed 128MiB QEMU RAM and 4KiB units for small objects.
+  There is no heap allocator.
+- The scheduler is a cooperative type that explicitly `yield`. Timer preemption, priority,
+  scheduler-aware There is no UART standby/sleep yet.
+- The task stack is currently one 4KiB sheet, and there is canary diagnosis, but there is no MMU guard page or
+  There is no separate IRQ stack yet.
+- All tasks share the same address space of EL1, and process isolation, file system,
+  There are no user programs.
+
+## Next steps
+
+1. Separate `.text`·`.rodata`·stack permissions and add guard page to L3 page table
+2. Activate D-cache·I-cache after cache maintenance
+3. Change UART·sleep to scheduler-aware standby and add timer preemption
+4. Kernel heap and user address space for small objects
+5. File system and user programs
 
 ## 한국어
-
-[한국어](#arm64-qemu-mini-os) · [English](#english)
 
 QEMU의 ARM64 `virt` 머신에서 실행하는 최소 커널입니다. 부트로더 없이 ELF
 커널을 직접 올리며, PL011 직렬 포트로 명령을 입력하고 결과를 출력합니다.
