@@ -99,7 +99,9 @@ make test
 `build/qemu-test.log`に保存されます。 GitHubにプッシュするかプルリクエストを作成すると
 GitHub ActionsのUbuntu環境でも同じ`make test`が自動的に実行されます。
 
-## シェルの使用`mini-os>` プロンプトでコマンドを入力し、Enter キーを押します。入力中は
+## シェルの使用
+
+`mini-os>` プロンプトでコマンドを入力し、Enter キーを押します。入力中は
 Backspace または Delete で文字を消去できます。最近8つの空ではありません
 コマンドを記憶し、上・下方向キーで前のコマンドをナビゲートできます。作成中
 上方向キーを押して下方向キーに戻ると、作成した文が復元されます。一行
@@ -211,7 +213,7 @@ I-cacheは、安全なcache invalidateとページ固有の実行権限を実装
 意図的にひも状態です。 `mmu`コマンドで実際のレジスタ値を確認できます
 あります。
 
-＃＃コラボレーションカーネルタスク
+## 協調型カーネルタスク
 
 タスク slot は boot・shell タスクを含めて最大 4 個です。新しいタスクは物理です
 ページアロケータから4KiB stackを1枚受け取り、`task_yield()`を呼び出すときのみ
@@ -372,7 +374,9 @@ If successful, each entry will be marked as `[PASS]`. The full UART history is
 It is saved in `build/qemu-test.log`. When you push to GitHub or make a pull request
 The same `make test` runs automatically in the Ubuntu environment in GitHub Actions.
 
-## Use shellAt the `mini-os>` prompt, type the command and press Enter. While typing
+## Use the shell
+
+At the `mini-os>` prompt, type the command and press Enter. While typing
 You can erase characters with Backspace or Delete. Last 8 non-empty
 It remembers commands and allows you to navigate to previous commands using the up and down arrow keys. While writing
 If you press the up arrow key and then return to the down arrow key, the sentence you were writing will be restored. One line
