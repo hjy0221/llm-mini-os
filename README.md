@@ -4,6 +4,8 @@
 
 ## 日本語
 
+[日本語](https://github.com/hjy0221/llm-mini-os#%E6%97%A5%E6%9C%AC%E8%AA%9E) · [English](https://github.com/hjy0221/llm-mini-os#english) · [한국어](https://github.com/hjy0221/llm-mini-os#%ED%95%9C%EA%B5%AD%EC%96%B4)
+
 QEMUのARM64 `virt`マシンで実行される最小カーネル。ブートローダなしでELF
 カーネルを直接上げ、PL011シリアルポートにコマンドを入力して結果を出力します。
 GICv2割り込みコントローラとARM Generic Timerを使用した100Hzシステムティック
@@ -279,6 +281,8 @@ assemblyで保存・復元し、C構造体offsetは`_Static_assert`で検査し�
 
 ## English
 
+[日本語](https://github.com/hjy0221/llm-mini-os#%E6%97%A5%E6%9C%AC%E8%AA%9E) · [English](https://github.com/hjy0221/llm-mini-os#english) · [한국어](https://github.com/hjy0221/llm-mini-os#%ED%95%9C%EA%B5%AD%EC%96%B4)
+
 A minimal kernel running on an ARM64 `virt` machine on QEMU. ELF without bootloader
 It loads the kernel directly, inputs commands through the PL011 serial port, and outputs the results.
 100Hz system ticks using GICv2 interrupt controller and ARM Generic Timer
@@ -553,6 +557,8 @@ This is a kernel task that runs, not process isolation.
 5. File system and user programs
 
 ## 한국어
+
+[日本語](https://github.com/hjy0221/llm-mini-os#%E6%97%A5%E6%9C%AC%E8%AA%9E) · [English](https://github.com/hjy0221/llm-mini-os#english) · [한국어](https://github.com/hjy0221/llm-mini-os#%ED%95%9C%EA%B5%AD%EC%96%B4)
 
 QEMU의 ARM64 `virt` 머신에서 실행하는 최소 커널입니다. 부트로더 없이 ELF
 커널을 직접 올리며, PL011 직렬 포트로 명령을 입력하고 결과를 출력합니다.
